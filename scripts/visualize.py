@@ -33,14 +33,21 @@ def normalize(np_arr):
     for i in range(0, np.shape(np_arr)[0]):
         np_arr[i] = np_arr[i] / maxval
 
-def getaverage(f, row, col, radius):
-    total = 0.0
-    count = 0.0
-    for i in range(row-radius, row+radius + 1):
-        for j in range(col-radius, col+radius + 1):
-            total += f[i,j]
-            count += 1.0
-    return total / count
+def convolute(f, method="boxblur"):
+    if method == "boxblur":
+        cmatrix = np.ones((3,3), np.float64)/9
+        buf = 1
+        print cmatrix 
+    if method == "edge":
+        cmatrix = np.matrix([[0.0,1.0,0.0],[1.0,-4.0,1.0],[0.0,1.0,0.0]])
+        #  cmatrix = np.matrix([[-1.0,-1.0,-1.0],[-1.0,8.0,-1.0],[-1.0,-1.0,-1.0]])
+        buf = 1
+        print cmatrix 
+    fcopy = f.copy()
+    for i in range(buf, 64-buf):
+        for j in range(buf, 64-buf):
+            fcopy[i,j] = np.dot(cmatrix, f[i-buf:i+buf+1,j-buf:j+buf+1])[1,1]
+    return fcopy
 
 def main():
     faceclass = np.genfromtxt('../resources/faceclass.csv', delimiter=',')
@@ -60,10 +67,10 @@ def main():
         normalize(facedata[i])
 
     f = facearrtomatrix(facedata[0])
-    showface(f)
+    fconv = convolute(f, "edge")
+    showface(fconv)
+    
 
 
 if __name__ == "__main__":
     main()
-
-
