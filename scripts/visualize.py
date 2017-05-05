@@ -1,7 +1,7 @@
 from PIL import Image
 import numpy as np
 
-def showface(f, features):
+def showface(f, features = np.zeros((64, 64), dtype=np.uint8)):
     fscaled = f*255
 
     w, h = 64, 64
