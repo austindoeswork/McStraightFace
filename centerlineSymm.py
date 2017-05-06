@@ -30,13 +30,13 @@ def showface(f, features = np.zeros((64, 64), dtype=np.uint8)):
 
     w, h = 64, 64
     data = np.zeros((h, w, 3), dtype=np.uint8)
-    for i in range(64):
-        for j in range(64):
+    for i in range(0,64):
+        for j in range(0,64):
             data[i, j] = [0, fscaled[i,j], 0]
 
     featscaled = features * 255
-    for i in range(64):
-        for j in range(64):
+    for i in range(0,64):
+        for j in range(0,64):
             if featscaled[i,j] > 0.0:
                 data[i, j] = [featscaled[i,j], 0, featscaled[i,j]]
 
@@ -44,31 +44,28 @@ def showface(f, features = np.zeros((64, 64), dtype=np.uint8)):
     img.show()
 #end func
 
-#funtion that parses input file into a list of lists. Returns the list of the labels row
-def parseInput(allFaces,filename):
-    with open(filename) as csvfile:
-        reader = csv.reader(csvfile, delimiter=',')
-
-        labelsRow = next(reader) #first row, the column labels
-        for row in reader:
-                row = list(map(float,row)) #convert strings to floats in the list
-                row = list(map(int, row)) #convert floats to ints, they should be
-                allFaces.append(row)
-        return labelsRow
-#end func
-
-#separate function to parse the faceclass.csv file
-def parseClassInput(allFaces,filename):
-    with open(filename) as csvfile:
-        reader = csv.reader(csvfile, delimiter=',')
-
-        labelsRow = next(reader) #first row, the column labels
-        for row in reader:
-                row = list(map(float,row)) #convert strings to floats in the list
-                row = list(map(int, row)) #convert floats to ints, they should be
-                allFaces.append(row)
-        return labelsRow
-#end func
+def convolute(f, method="boxblur"):
+    if method == "boxblur":
+        cmatrix = np.ones((3,3), np.float64)/9
+        buf = 1
+        #  print cmatrix 
+    if method == "edge":
+        cmatrix = np.matrix([[0.0,1.0,0.0],[1.0,-4.0,1.0],[0.0,1.0,0.0]])
+        #  cmatrix = np.matrix([[-1.0,-1.0,-1.0],[-1.0,8.0,-1.0],[-1.0,-1.0,-1.0]])
+        buf = 1
+        #print(cmatrix) 
+    #  fcopy = f.copy()
+    fcopy = np.zeros_like(f)
+    size = np.shape(f)[0]
+    for i in range(buf, size-buf):
+        for j in range(buf, size-buf):
+            #  fcopy[i,j] = np.dot(cmatrix, f[i-buf:i+buf+1,j-buf:j+buf+1])[1,1]
+            val = np.dot(cmatrix, f[i-buf:i+buf+1,j-buf:j+buf+1])[1,1]
+            #  print val
+            if val > -0.8:
+            #  if val < -1.5:
+                fcopy[i,j] = val
+    return fcopy
 
 def writeCSV(data,labelsRow,filename):
     length = len(data)
@@ -104,11 +101,19 @@ def calcSymm(faceRow,centerline,epsilon):
     return count,faceRow
 #end func
 
-
+#normalize function that normalizes the whole face
+def normalize(np_arr):
+    maxval = 0.0
+    for i in range(0, np.shape(np_arr)[0]):
+        if np_arr[i] > maxval:
+            maxval = np_arr[i]
+    for i in range(0, np.shape(np_arr)[0]):
+        np_arr[i] = np_arr[i] / maxval
 
 #takes in the face, and the centerline that we are normalizing each half
-def normalizeFace(face,centerline):
-    colsums = np.sum(face,axis=0) #sum the columns into a row array
+def normalizeFace(face,centerline,fconv,mask):
+    
+    colsums = np.sum(fconv,axis=0) #sum the columns into a row array
     leftsum = np.sum(colsums[0:centerline])
     rightsum = np.sum(colsums[centerline:SIZE])
 
@@ -119,13 +124,29 @@ def normalizeFace(face,centerline):
 
     for i in range(0,SIZE):
         for j in range(0,centerline):
-            normFace[i,j] = face[i,j] - leftsum
+            if(mask[i,j] != -1): #do i want to be doing this?
+                normFace[i,j] = fconv[i,j] - leftsum
 
     for i in range(0,SIZE):
         for j in range(centerline,SIZE):
-            normFace[i,j] = face[i,j] - rightsum
+            if(mask[i,j] != -1):
+                normFace[i,j] = fconv[i,j] - rightsum
 
     return normFace
+
+
+#func. don't need to be calling this every normalize, only need once per face
+def edgeMask(face):
+    fconv = convolute(face,"edge")
+    newf = face.copy()
+    mask = np.zeros((SIZE,SIZE),dtype=np.int)
+    for i in range(0,SIZE):
+        for j in range(0,SIZE):
+            if(fconv[i,j] > 0.0):
+                newf[i,j] = 0
+                mask[i,j] = -1
+    return newf, mask
+#end func
 
 #updated func
 def findCenterline(face,epsilon,start):
@@ -133,11 +154,12 @@ def findCenterline(face,epsilon,start):
     maxSymm = 0
     maxSymmCenter = 32
     #bestFace
+    fconv,edgemask = edgeMask(face)
     
     for i in range(start,SIZE-start): #will iterate over all possible centerlines
     #for i in range(32,33):
         totSymm = 0
-        normFace = normalizeFace(face,i)
+        normFace = normalizeFace(face,i,fconv,edgemask)
         for j in range(0,SIZE): #j is the row
             count, faceRow = calcSymm(normFace[j],i,epsilon)
             totSymm += count     
@@ -230,12 +252,14 @@ print(np.shape(facedata))
 epsilon = 13 #tunable, 13 was best on trainError, should recheck on test error (ECV)
 start = 20 #tunable 21 is best, might use 20 to be safe
 numpca = 10
-runs = 10
+runs = 1
 
 allFaces = []
 for i in range(0,len(facedata)):
     #transposeFace(allFaces[i])
-    allFaces.append(facearrtomatrix(facedata[i]))
+    #fconv = convolute(f, "edge")
+    #allFaces.append(convolute(facearrtomatrix(facedata[i]),"edge")) #convolute each face
+    allFaces.append(facearrtomatrix(facedata[i])) #convolute each face
 
 minError = len(allFaces)
 minIndex = 0
@@ -285,10 +309,13 @@ for q in range(0,runs):
 #end for loop
 
 print("Average test error: " + str(float(totTestError) / runs))
-#for i in range(0,10):
-#    showface(allFaces[i])
+for i in range(10,20):
+    normalize(facedata[i]) #do i need to normalize first? yes
+    fconv = convolute(facearrtomatrix(facedata[i]),"edge")
+    #print(fconv)
+    showface(fconv)
 
-
+#convolution "edge" has a lot of 0s
 
 
 
