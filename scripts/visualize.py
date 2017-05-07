@@ -22,7 +22,8 @@ def showface(f, features = np.zeros((64, 64), dtype=np.uint8)):
     img = Image.fromarray(data, 'RGB')
     img = img.resize((1024,1024))
     img.show()
-
+# 130
+# 171
 # left brow, left
 # left brow, top
 # left brow, right
@@ -189,13 +190,25 @@ def main():
 
     
     # TRAIN THE MARKS
-    for i in range(20):
+    #  for i in range(180, 400):
+        #  if i % 10 == 0 or i % 10 == 1:
+            #  print "TRAINING INDEX", i
+            #  f = facearrtomatrix(facedata[i])
+            #  marks = markface(f, i)
+            #  print marks
+            #  np.savetxt("marks/" +str(i)+".csv", marks, delimiter=",", fmt="%d")
+
+    # SHOW THE MARKS
+
+    for i in range(100):
         if i % 10 == 0 or i % 10 == 1:
-            print "TRAINING INDEX", i
+            marks = np.genfromtxt("./marks/" + str(i) + ".csv", delimiter=',')
+            featmarks = np.zeros((64,64), np.uint8)
+            for j in range(21):
+                featmarks[int(marks[j,1]),int(marks[j,0])] = 1
             f = facearrtomatrix(facedata[i])
-            marks = markface(f, i)
-            print marks
-            np.savetxt("marks/" +str(i)+".csv", marks, delimiter=",", fmt="%d")
+            showface(f, featmarks)
+
 
     # RUN TESTS
     #  featpos = np.zeros((16,16), np.uint8)
