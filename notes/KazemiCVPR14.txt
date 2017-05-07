@@ -1,0 +1,20 @@
+Precisely Estimate Position of Facial Landmarks
+
+I = image
+
+x_i E R^2
+x_i == x,y coordinates of the i'th landmark
+
+S = array of all coords
+  aka Shape
+
+S^(t) = current estimate of S
+
+S^(t+1) = S^(t) + r_t(I, S^(t))
+
+r_t = regressor
+		makes predictions based on features such as pixel intensity from I
+		relative to S^(t)
+
+need to train r_t
+
